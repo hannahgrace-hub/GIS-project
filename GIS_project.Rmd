@@ -1,0 +1,129 @@
+---
+title: "GIS project"
+author: "Hannah Chan-Henry"
+date: "2026-03-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This project looked at the distribution of common forest tree species on a soil moisture gradient in Knysna. I investigated three species; Forest Elder, Ironwood and Cape Holly. I wanted to look at soil moisture as a determinate of tree species distribution as Knysna is an area that experiences extreme droughts.
+
+The point data has been taken from  iNaturalist. The raster data (soil moisture) has been taken from the geodata package. The soil data, more specifically, was collected in the AfSIS project which uses soil measurements and environmental covariates to predict properties of soil at a 250m resolution. 
+
+The workflow I used is as followed (and has been outlined in the comments of the code):
+First I extracted species point data from iNaturalist using the coordinates of the Knysna area. I then filtered the data, only retaining research-grade, non cultivated observations. I then converted the datframe into a spatial object. The point data was then plotted onto an interactive map. I then extracted soil moisture raster data from geodata. I cropped the raster data to the Knysna area. I then increased the resolution of the data using bilinear method by a factor of 4. The 
+raster and point data were then plotted onto the same figure.
+
+The goal of this project was to map species point data onto soil moisture data to investigate whether these tree species have a preference for a certain soil moisture level.
+
+```{r packages, message=FALSE, warning=FALSE}
+# data extraction and formatting packages
+library(terra)
+library(geodata)
+library(rinat)
+library(sf)
+library(tidyverse)
+
+#data visualisation packages
+library(rosm)
+library(ggplot2)
+library(ggspatial)
+library(leaflet)
+library(htmltools)
+```
+
+
+```{r point data}
+# For forest elder data
+# Call the data directly from iNat
+forest_elder <- get_inat_obs(taxon_name = "Nuxia floribunda",
+                   bounds = c(-34.09, 22.72, -33.87, 23.26),
+                   maxresults = 1000)
+
+# Filtering for research grade, non cultivated points
+forest_elder <- forest_elder %>% filter(positional_accuracy<46 & 
+                      latitude<0 &
+                      !is.na(latitude) &
+                      captive_cultivated == "false" &
+                      quality_grade == "research")
+
+# Convert to spatial object
+forest_elder <- st_as_sf(forest_elder, coords = c("longitude", "latitude"), crs = 4326)
+
+# Repeat process for ironwood
+ironwood <- get_inat_obs(taxon_name = "Olea capensis",
+                             bounds = c(-34.09, 22.72, -33.87, 23.26),
+                             maxresults = 1000)
+
+ironwood <- ironwood %>% filter(positional_accuracy<46 & 
+                                          latitude<0 &
+                                          !is.na(latitude) &
+                                          captive_cultivated == "false" &
+                                          quality_grade == "research")
+
+ironwood <- st_as_sf(ironwood, coords = c("longitude", "latitude"), crs = 4326)
+
+# Repeat process for Cape Holly 
+cape_holly <- get_inat_obs(taxon_name = "Ilex mitis",
+                         bounds = c(-34.09, 22.72, -33.87, 23.26),
+                         maxresults = 1000)
+
+cape_holly <- cape_holly %>% filter(positional_accuracy<46 & 
+                                  latitude<0 &
+                                  !is.na(latitude) &
+                                  captive_cultivated == "false" &
+                                  quality_grade == "research")
+
+cape_holly <- st_as_sf(cape_holly, coords = c("longitude", "latitude"), crs = 4326)
+```
+
+```{r interactive plot, fig.cap= "Interactive plot of Forest Elder, Ironwood and Cape Holly observations in the Knysna area."}
+leaflet() %>%
+  # Add default OpenStreetMap map tiles
+  addTiles(group = "Default") %>%  
+  # Add our points
+  addCircleMarkers(data = forest_elder,
+                   group = "Nuxia floribunda",
+                   radius = 3, 
+                   color = "black")%>%
+  addCircleMarkers(data = ironwood,
+                   group = "Olea capensis",
+                   radius = 3, 
+                   color = "blue")%>%
+  addCircleMarkers(data = cape_holly,
+                   group = "Ilex mitis",
+                   radius = 3, 
+                   color = "red")%>%
+  addLegend(
+    position = "topright",
+    colors = c("black", "blue", "red"),
+    labels = c("Forest Elder", "Ironwood", "Cape Holly"),
+    title = "Tree Species",
+    opacity = 1
+  )
+```
+
+```{r raster data}
+# Extract soil raster data from Geodata
+soil_data <- soil_af_water(var="tetas",path = tempdir())
+
+# Trim data to desired extent
+trim_soil <- crop(soil_data, ext(c(22.72, 23.26, -34.09, -33.87)))
+
+# Increase resolution of data by a factor of 4 using bilinear method
+high_res_soil <- disagg(trim_soil, fact = 4, method = "bilinear")
+```
+
+```{r map data, fig.cap="The distribution of common forest tree species in Knysna over soil moisture gradient. The species are Forest Elder (black), Ironwood (green) and Cape Holly (red).", fig.width=15}
+ggplot() + 
+  geom_raster(data = as.data.frame(high_res_soil, xy = TRUE),
+              aes(x = x, y = y, fill = `af_30cm_tetas`)) +
+  geom_sf(data=forest_elder, colour = "black", size = 2.5)+
+  geom_sf(data=ironwood, colour = "green", size = 2.5)+
+  geom_sf(data=cape_holly, colour = "red", size = 2.5)+
+  labs(fill = "Moisture (volumetric %)")
+```
+
