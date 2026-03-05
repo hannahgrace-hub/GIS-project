@@ -127,3 +127,6 @@ ggplot() +
   labs(fill = "Moisture (volumetric %)")
 ```
 
+From the figure produces, it appears that some points are 'falling off' the soil gradient map. This is likely because there is no raster data in these areas or because the data around the coastline is low resolution. 
+
+It seems that the tree species are concentrated in areas with higher moisture levels. This pattern is especially prominent for the Forest Elder tree samples. Every few of the data points are observed in the light or lower moisture level areas. Areas with the highest moisture levels also had few observed samples. We could infer that these species may prefer moderate to high soil moisture levels.
